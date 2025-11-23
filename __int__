@@ -1,0 +1,184 @@
+import bpy
+
+
+
+
+
+
+class OBJECT_OT_parent_to_empty_with_properties(bpy.types.Operator):
+    #main button that  triggers everything below 
+    bl_idname = "object.parent_to_empty_with_properties"
+    bl_label = "Make selected meshes colliders"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+     # Set custom properties for the empty object they throw up an error in IDE buts its cool 
+    empty_prop1: bpy.props.StringProperty(name="EE Rigidbody Type", default="fixed")
+    empty_prop2: bpy.props.StringProperty(name="Entity", default="base")
+    # Set custom properties for the child objects
+    child_prop1: bpy.props.StringProperty(name="EE Collider Shape", default="mesh")
+    child_prop2: bpy.props.StringProperty(name="Entity", default="Mesh Collider")
+    
+    def execute(self, context):
+        #main logic 
+        selected_objects = context.selected_objects
+        # check for nothing selected if true it stops  could be updated to also trigger for emptyies and stuff we dont want
+        if not selected_objects:
+            self.report({'WARNING'}, " select collision meshes silly goose ")
+            return {'CANCELLED'}
+       # if  selected_objects.type == 'MESH':
+            self.report({'WARNING'}, " select meshes only silly goose ")
+            return {'CANCELLED'}
+        
+        # Create a new collection for colliders
+        collider_collection = bpy.data.collections.new("colliders")
+        context.scene.collection.children.link(collider_collection)    
+        if "colliders" not in bpy.data.collections:
+            colliders_collection = bpy.data.collections.new("colliders")
+            context.scene.collection.children.link(colliders_collection)
+        else:
+            colliders_collection = bpy.data.collections["colliders"]   
+            
+                     
+        # Create an empty object at world orgin per the requirment in iRE
+        
+        empty = bpy.data.objects.new("base", None)
+        context.collection.objects.link(empty)
+          # Set custom properties for the empty subject to change from iRE team 
+        empty["xrengine.EE_rigidbody.type"] = self.empty_prop1
+        empty["xrengine.entity"] = self.empty_prop2
+        
+        
+        for obj in selected_objects:
+            # loops through all selected objects 
+            obj.parent = empty
+            obj.matrix_parent_inverse = empty.matrix_world.inverted()
+            # Set custom properties for the child objects
+            obj["xrengine.EE_collider.shape"] = self.child_prop1
+            obj["xrengine.entity"] = self.child_prop2
+            # adds "Collider" in each objects name
+            obj.name = f"{obj.name}-Collider"
+            colliders_collection.objects.link(obj)
+            context.collection.objects.unlink(obj)
+
+        
+            
+        # Move the empty object to the colliders collection
+        colliders_collection.objects.link(empty)
+        context.collection.objects.unlink(empty)
+                
+        #add the empty as an active object to make exporting easier   
+        context.view_layer.objects.active = empty
+        empty.select_set(True)    
+       
+        
+
+
+        
+        return {'FINISHED'}
+
+class OBJECT_ire_combatable_gltf_export(bpy.types.Operator):   
+ 
+    
+    #button to export as a GLTF made need updated for Mats and the like 
+    bl_idname = "object.ire_combatable_gltf_export"
+    bl_label = "IRE Compatable GLTF export"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: bpy.props.StringProperty(subtype="FILE_PATH")
+    
+    def execute(self, context):
+        print("export")
+        #FIRST check to see if we are Selecting objecrts 
+        if not context.selectable_objects:
+            self.report({'WARNING'},"Please Select Objects for Export")
+            return{'CANCELLED'}
+        
+        # the actual Exporter LIKELY TO REQUIRE UPDATE    
+        bpy.ops.export_scene.gltf (
+            filepath=self.filepath,
+                    export_format='GLB',
+                    export_texture_dir="textures", 
+                    check_existing=False, 
+                    export_texcoords=True,
+                    export_normals=True,
+                    export_apply=True,
+                    export_materials='EXPORT',
+                    use_selection=True,
+                    export_animations=False,
+                    export_skins=False,
+                    export_morph=False,
+                    export_extras=True,
+        )
+        
+                    #add other export Varibales here https://docs.blender.org/api/current/bpy.ops.export_scene.html
+                        
+            
+        self.report({'INFO'}, f"Exported to {self.filepath}")
+    
+
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+         # Open file browser to choose location 
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+    
+    
+    
+    
+
+ 
+    
+
+class VIEW3D_PT_custom_properties_panel(bpy.types.Panel):
+    #panel layout
+    bl_label = "IRE Helper "
+    bl_idname = "VIEW3D_PT_custom_properties_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'IRE helper'
+    
+    def draw(self, context):
+        
+        #panel layout butons 
+        
+        
+        layout = self.layout
+        layout.label(text="IRE Helper", icon='OUTLINER_DATA_META')
+        #first button 
+        layout.operator("object.parent_to_empty_with_properties",icon= 'EVENT_C')
+        
+        layout.operator("object.ire_combatable_gltf_export", icon='EVENT_E')
+        
+        ascii_art = [   r"""(づ｡◕‿‿◕｡)づ
+                  
+                    
+                            """  ]
+             
+                  
+        
+        
+
+        for line in ascii_art:
+            layout.label(text=line)
+        
+# stuff needed for the Add-on 
+
+def register():
+    
+    bpy.utils.register_class(OBJECT_OT_parent_to_empty_with_properties)
+
+    bpy.utils.register_class(OBJECT_ire_combatable_gltf_export)
+    bpy.utils.register_class(VIEW3D_PT_custom_properties_panel)
+
+   
+
+def unregister():
+    bpy.utils.unregister_class(OBJECT_OT_parent_to_empty_with_properties)
+
+    bpy.utils.unregister_class(OBJECT_ire_combatable_gltf_export)
+    bpy.utils.unregister_class(VIEW3D_PT_custom_properties_panel)   
+if __name__ == "__main__":
+    register()
